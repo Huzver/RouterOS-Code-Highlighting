@@ -1,0 +1,135 @@
+/system logging action<br/>
+set 1 disk-file-count=3<br/>
+/system logging<br/>
+set 0 action=memory prefix=INFO<br/>
+set 1 action=memory prefix=ERR<br/>
+set 2 action=disk prefix=WARN<br/>
+set 3 action=memory prefix=CRIT<br/>
+add action=memory prefix=SYN topics=async disabled=yes<br/>
+:log warning "LOGGING_CHANGED";<br/>
+:delay 3s;<br/><br/>
+/system routerboard settings set init-delay=0s<br/>
+/system routerboard usb set type=mini-PCIe<br/>
+:log warning "MINI-PCI ACTIVATED";<br/>
+:delay 1s;<br/><br/>
+:log warning "SET INITIAL PARAMETER";<br/>
+:global NUM 0;<br/>
+:global VER [:pick [/system resource get version] 0 4];<br/>
+:global MODEL [:pick [/system routerboard get model] 0 3];<br/>
+:global SERIAL [:pick [/system routerboard get serial-number] 7 12];<br/><br/>
+:log warning "SETTINGS_START_INSTALL";<br/><br/>
+/system identity<br/>
+set name=GTX400-912BC<br/>
+:set $NUM ($NUM+1);<br/>
+:log warning "STEP_$"NUM"_COMPLETE";<br/>
+:delay 1ms;<br/><br/>
+/interface lte<br/>
+set [ find ] apn=internet comment="4G Internet" \<br/>
+    name=lte1 disabled=yes<br/>
+:set $NUM ($NUM+1);<br/>
+:log warning "STEP_$"NUM"_COMPLETE";<br/>
+:delay 1s;<br/><br/>
+/ip neighbor discovery<br/>
+set lte1 discover=no<br/>
+:set $NUM ($NUM+1);<br/>
+:log warning "STEP_$"NUM"_COMPLETE";<br/>
+:delay 1s;<br/><br/>
+/interface lte<br/>
+set [ find ] disabled=no<br/>
+:set $NUM ($NUM+1);<br/>
+:log warning "STEP_$"NUM"_COMPLETE";<br/>
+:delay 5s;<br/><br/>
+/ip dhcp-client<br/>
+add comment="Get IP From LTE1&#8243; use-peer-dns=yes dhcp-options=hostname,clientid disabled=no \<br/>
+    interface=lte1 use-peer-ntp=no add-default-route=yes default-route-distance=1<br/>
+:set $NUM ($NUM+1);<br/>
+:log warning "STEP_$"NUM"_COMPLETE";<br/>
+:delay 10s;<br/><br/>
+/interface ethernet<br/>
+set [ find default-name=ether1 ] comment="Local" name="LAN-Master"<br/>
+:set $NUM ($NUM+1);<br/>
+:log warning "STEP_$"NUM"_COMPLETE";<br/>
+:delay 1ms;<br/><br/>
+/ip firewall nat<br/>
+add action=masquerade chain=srcnat log-prefix="" out-interface=lte1 comment="Internet To Local"<br/>
+:set $NUM ($NUM+1);<br/>
+:log warning "STEP_$"NUM"_COMPLETE";<br/>
+:delay 2s;<br/><br/>
+/ip dns<br/>
+set allow-remote-requests=yes cache-size=4096KiB<br/>
+:set $NUM ($NUM+1);<br/>
+:log warning "STEP_$"NUM"_COMPLETE";<br/>
+:delay 1ms;<br/><br/>
+/system clock<br/>
+set time-zone-autodetect=no time-zone-name=Europe/Moscow<br/>
+:set $NUM ($NUM+1);<br/>
+:log warning "STEP_$"NUM"_COMPLETE";<br/>
+:delay 1ms;<br/><br/>
+/system ntp client<br/>
+set enabled=yes server-dns-names=\<br/>
+    ntp4.stratum2.ru,ntp3.stratum2.ru,ntp5.stratum1.ru,timeserver.ru<br/>
+:set $NUM ($NUM+1);<br/>
+:log warning "STEP_$"NUM"_COMPLETE";<br/>
+:delay 1ms;<br/><br/>
+:local G [/system leds find disabled=no];<br/>
+:if ($G != "") do={<br/>
+/system leds<br/>
+set 0 interface=lte1 leds=user-led type=interface-transmit<br/>
+add interface=lte1 leds=led1,led2,led3,led4,led5 modem-signal-treshold=-105 type=modem-signal<br/>
+} else={<br/>
+/system leds<br/>
+add interface=lte1 type=interface-transmit leds=user-led<br/>
+add interface=lte1 leds=led1,led2,led3,led4,led5 modem-signal-treshold=-105 type=modem-signal<br/>
+}<br/>
+:set $NUM ($NUM+1);<br/>
+:log warning "STEP_$"NUM"_COMPLETE";<br/>
+:delay 2s;<br/><br/>
+/ip pool<br/>
+add name=dhcp-pool1 ranges=192.168.88.10-192.168.88.250<br/>
+:set $NUM ($NUM+1);<br/>
+:log warning "STEP_$"NUM"_COMPLETE";<br/>
+:delay 1s;<br/><br/>
+/ip dhcp-server network<br/>
+add address=192.168.88.0/24 comment="For Local" dns-server=\<br/>
+    192.168.88.1,8.8.8.8 gateway=192.168.88.1 netmask=24<br/>
+:set $NUM ($NUM+1);<br/>
+:log warning "STEP_$"NUM"_COMPLETE";<br/>
+:delay 1s;<br/><br/>
+/ip dhcp-server<br/>
+add add-arp=yes address-pool=dhcp-pool1 bootp-lease-time=lease-time \<br/>
+    bootp-support=dynamic disabled=no interface=LAN-Master lease-time=12h name=\<br/>
+    dhcp-server1<br/>
+:set $NUM ($NUM+1);<br/>
+:log warning "STEP_$"NUM"_COMPLETE";<br/>
+:delay 1s;<br/><br/>
+/ip address<br/>
+add address=192.168.88.1/24 comment="Local" interface=LAN-Master network=192.168.88.0<br/>
+:set $NUM ($NUM+1);<br/>
+:log warning "STEP_$"NUM"_COMPLETE";<br/>
+:delay 1s;<br/><br/>
+/system backup save name="initial_gtx400_$"MODEL"bc_$"VER""<br/>
+:log warning "CREATED_BACKUP_FILE_initial_gtx400_$"MODEL"bc_$"VER"";<br/>
+:set $NUM ($NUM+1);<br/>
+:log warning "STEP_$"NUM"_COMPLETE";<br/>
+:delay 1s;<br/><br/>
+/file remove [ find type="directory" ]
+/file remove [ find type="package" ]
+/file remove [ find type=".fwf file" ]
+/file remove [ find type=".rif file" ]
+/file remove [ find type="web-proxy store" ]
+:set $NUM ($NUM+1);<br/>
+:log warning "STEP_$"NUM"_COMPLETE";<br/>
+:delay 1s;<br/><br/>
+/system routerboard upgrade<br/>
+:set $NUM ($NUM+1);<br/>
+:log warning "STEP_$"NUM"_COMPLETE";<br/>
+:delay 1s;<br/><br/>
+/system package disable [ find name=wireless ]
+/system package disable [ find name=wireless-fp ]
+/system package disable [ find name=wireless-cm2 ]
+:set $NUM ($NUM+1);<br/>
+:log warning "STEP_$"NUM"_COMPLETE";<br/>
+:delay 1s;<br/><br/>
+:log warning "SETTINGS_INSTALL_END";<br/>
+/system reboot<br/>
+:delay 1ms;<br/>
